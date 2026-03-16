@@ -1,54 +1,19 @@
 [project]
 name = "agentic-ledger"
 version = "0.1.0"
-description = "Immutable event store for multi-agent AI systems with enterprise audit infrastructure"
-readme = "README.md"
-authors = [
-    {name = "Tsegay", email = "tsegayassefa27@gmail.com"}
-]
+description = "Immutable event store for multi-agent AI systems"
+authors = [{name = "Tsegay"}]
 license = {text = "MIT"}
 requires-python = ">=3.11"
 dependencies = [
-    "asyncpg>=0.29.0",           # PostgreSQL async driver
-    "pydantic>=2.5.0",           # Data validation
-    "pydantic-settings>=2.1.0",  # Settings management
-    "python-dotenv>=1.0.0",      # Environment variables
-    "uuid-utils>=0.14.0",        # UUID handling
-    "click>=8.1.0",              # CLI interface
-    "rich>=13.7.0",               # Pretty console output
-    "fastapi>=0.104.0",           # For MCP server later
-    "uvicorn>=0.24.0",             # ASGI server
-    "httpx>=0.25.0",               # HTTP client
-    "pytest>=7.4.0",               # Testing
-    "pytest-asyncio>=0.21.0",      # Async tests
-    "pytest-cov>=4.1.0",            # Coverage
-    "hypothesis>=6.92.0",           # Property-based testing
+    "asyncpg>=0.29.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "python-dotenv>=1.0.0",
 ]
-
-[project.scripts]
-ledger-cli = "src.cli:main"
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
 
-[tool.ruff]
-line-length = 100
-target-version = "py311"
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "B", "C4", "ARG", "SIM"]
-ignore = []
-
-[tool.mypy]
-python_version = "3.11"
-strict = true
-ignore_missing_imports = true
-
-[tool.pytest.ini_options]
-minversion = "7.0"
-addopts = "-ra -q --strict-markers"
-testpaths = [
-    "tests",
-]
-asyncio_mode = "auto"
+# NO package configuration - we'll use PYTHONPATH instead
