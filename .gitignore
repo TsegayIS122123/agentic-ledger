@@ -57,10 +57,7 @@ logs/
 *.db
 *.sqlite3
 
-# UV
-.python-version
-uv.lock
+
 
 # Runtime
 *.pid
-*.pid.lock
