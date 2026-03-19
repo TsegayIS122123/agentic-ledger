@@ -403,7 +403,87 @@ tests/test_concurrency.py::test_retry_after_concurrency_error PASSED            
 -  **Stream Version Tracking** - O(1) concurrency checks via event_streams table
 -   **Outbox Pattern** - Guaranteed event delivery to external systems
 
+## 🧠 PHASE 2: Domain Logic - Aggregates, Commands & Business Rules
 
+> *"If Phase 1 built the memory, Phase 2 builds the brain."*
+
+### 📋 Overview
+
+Phase 2 brings your event store to LIFE! You'll implement the **intelligent business logic** that makes decisions, enforces rules, and ensures your system behaves correctly.
+
+---
+
+## 🏛️ **Core Concepts**
+
+### 1. What is an Aggregate?
+
+```mermaid
+graph LR
+    subgraph "Aggregate = Consistency Boundary"
+        A[LoanApplication] --> B[State: SUBMITTED]
+        A --> C[Rules: Can't approve without compliance]
+        A --> D[Events: ApplicationSubmitted, CreditAnalysisCompleted]
+    end
+    
+    subgraph "Event Store"
+        E[(Immutable Events)]
+    end
+    
+    A -.->|Load from| E
+    A -.->|Append to| E
+```
+### 🏆 Key Achievements
+- add aggregates and command handlers
+- Add ApplicationState and RiskTier enums
+- Implement LoanApplication aggregate with state machine
+- Add AgentSession aggregate with Gas Town pattern
+- Create command handlers for submit_application, start_agent_session, credit_analysis_completed
+
+### 📊 Phase 2 Architecture
+
+```mermaid
+graph TD
+    subgraph "Command Flow"
+        CMD[Command Received] --> LOAD[Load Aggregates]
+        LOAD --> VALIDATE[Validate Business Rules]
+        VALIDATE --> CREATE[Create Events]
+        CREATE --> APPEND[Append to Event Store]
+    end
+
+    subgraph "LoanApplication Aggregate"
+        LA[LoanApplication] --> SM[State Machine]
+        SM --> S1[Submitted]
+        SM --> S2[AwaitingAnalysis]
+        SM --> S3[AnalysisComplete]
+        SM --> S4[ComplianceReview]
+        SM --> S5[PendingDecision]
+        SM --> S6[FinalApproved/Declined]
+        
+        R1[Business Rules] --> LA
+        R1 --> R01[Valid Transitions Only]
+        R1 --> R02[No Double Analysis]
+        R1 --> R03[Compliance Required]
+    end
+
+    subgraph "AgentSession Aggregate"
+        AS[AgentSession] --> GT[Gas Town Pattern]
+        GT --> CTX[Context Loaded First]
+        GT --> DEC[Decision Events]
+        
+        R2[Business Rules] --> AS
+        R2 --> R11[Context Required]
+        R2 --> R12[Model Version Locking]
+    end
+
+    subgraph "Command Handlers"
+        H1[submit_application] --> LA
+        H2[start_agent_session] --> AS
+        H3[credit_analysis_completed] --> LA
+        H3 --> AS
+    end
+
+    APPEND --> ES[(Event Store)]
+```
 
 
 ## 🤝 Contributing
