@@ -47,4 +47,24 @@
 | `payload JSONB` | Message to publish (may differ from event). |
 | `created_at TIMESTAMPTZ` | For ordering and cleanup. |
 | `published_at TIMESTAMPTZ` | NULL = not yet published. Enables polling. |
-| `attempts SMALLINT` | For retry logic and dead-lettering. |
+| `attempts SMALLINT` | For retry logic and dead-lettering.
+
+## Phase 4: Upcasting Inference Strategies
+
+### CreditAnalysisCompleted v1 → v2
+
+| Field | Inference Strategy | Justification |
+|-------|-------------------|---------------|
+| `model_version` | Infer from recorded_at year | Pre-2026 events used rule-based system, not ML. Sentinels are accurate categorical facts. |
+| `confidence_score` | NULL | This data was not collected. Fabrication would create false audit trail - worse than null. |
+| `regulatory_basis` | Look up from regulation changes | Regulation changes are public record. Inference is deterministic and verifiable. |
+
+### DecisionGenerated v1 → v2
+
+| Field | Inference Strategy | Performance Impact |
+|-------|-------------------|-------------------|
+| `model_versions` | Load each AgentSession to get model_version | Each upcast may require N additional queries. Acceptable because old events are upcasted once and cached. |
+
+### Immutability Guarantee
+
+The system NEVER modifies stored events. Upcasting happens entirely in memory at read time, preserving the core event sourcing guarantee. |
