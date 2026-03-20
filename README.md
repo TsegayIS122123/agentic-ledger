@@ -484,8 +484,85 @@ graph TD
 
     APPEND --> ES[(Event Store)]
 ```
+# A projection is a read-optimized view of your data, built by processing events.
+graph LR
+    subgraph "Command Side (Phase 1-2)"
+        A[Commands] --> B[Aggregates]
+        B --> C[(Event Store)]
+    end
+    
+    subgraph "Query Side (Phase 3)"
+        C --> D[Projection Daemon]
+        D --> E[(Read Models)]
+        E --> F[Queries]
+    end
+    
+    style C fill:#f9f,stroke:#333,stroke-width:4px
+    style D fill:#bbf,stroke:#333,stroke-width:2px
+    style E fill:#bfb,stroke:#333,stroke-width:2px
 
+#  CQRS - Command Query Responsibility Segregation
+graph TB
+    subgraph "Command Side (Writes)"
+        C[Commands] --> A[Aggregates]
+        A --> ES[(Event Store)]
+    end
+    
+    subgraph "Query Side (Reads)"
+        ES --> PD[Projection Daemon]
+        PD --> P1[ApplicationSummary]
+        PD --> P2[AgentPerformance]
+        PD --> P3[ComplianceAuditView]
+        P1 --> Q[Queries]
+        P2 --> Q
+        P3 --> Q
+    end
+    
+    style ES fill:#f9f,stroke:#333,stroke-width:4px
+    style PD fill:#bbf,stroke:#333,stroke-width:2px
+    style P1,P2,P3 fill:#bfb,stroke:#333,stroke-width:2px
+## 🚀 PHASE 3: CQRS Projections & Async Daemon
 
+> *"If Phase 1 was the memory and Phase 2 was the brain, Phase 3 is the view."*
+
+### 📋 Overview
+
+Phase 3 builds the **read side** of your CQRS architecture. Projections transform the immutable event stream into fast, query-optimized views.
+
+```mermaid
+graph LR
+    subgraph "Event Store"
+        ES[(Immutable Events)]
+    end
+    
+    subgraph "Projection Daemon"
+        PD[Async Daemon] --> CP[Checkpoint Manager]
+    end
+    
+    subgraph "Read Models"
+        PD --> A[ApplicationSummary<br/>SLO: <500ms]
+        PD --> B[AgentPerformance<br/>Analytics]
+        PD --> C[ComplianceAuditView<br/>Temporal Queries]
+    end
+    
+    subgraph "Queries"
+        A --> Q1[Dashboard]
+        C --> Q2[Regulatory Exams]
+    end
+    
+    ES --> PD
+```
+### 🏆 Key Achievements
+- Add ProjectionDaemon with checkpoint management and fault tolerance
+- Implement ApplicationSummary projection (SLO: <500ms)
+- Add AgentPerformanceLedger for model version analytics
+- Create ComplianceAuditView with temporal query support
+- Add snapshot strategy for regulatory time-travel
+- Implement lag monitoring and metrics
+- Add comprehensive tests for all projections
+- Update schema with projection tables
+- Add daemon runner script
+    
 ## 🤝 Contributing
 
 This is a training project for the TRP1 FDE Program. Contributions and feedback are welcome!

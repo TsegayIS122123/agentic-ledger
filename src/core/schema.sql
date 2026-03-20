@@ -277,3 +277,95 @@ CREATE TRIGGER trigger_event_appended
     AFTER INSERT ON events
     FOR EACH ROW
     EXECUTE FUNCTION notify_event_appended();
+
+
+-- =====================================================
+-- PROJECTION TABLES - Added for Phase 3
+-- =====================================================
+
+-- Table: application_summary
+-- Purpose: Read-optimized view of all loan applications
+-- SLO: <500ms lag
+CREATE TABLE application_summary (
+    application_id        TEXT PRIMARY KEY,
+    state                 TEXT NOT NULL,
+    applicant_id          TEXT,
+    requested_amount_usd  DECIMAL,
+    approved_amount_usd   DECIMAL,
+    risk_tier             TEXT,
+    fraud_score           DECIMAL,
+    compliance_status     TEXT,
+    decision              TEXT,
+    agent_sessions_completed TEXT[] DEFAULT '{}',
+    last_event_type       TEXT,
+    last_event_at         TIMESTAMPTZ,
+    human_reviewer_id     TEXT,
+    final_decision_at     TIMESTAMPTZ,
+    updated_at            TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_app_summary_state ON application_summary (state);
+CREATE INDEX idx_app_summary_risk ON application_summary (risk_tier);
+
+
+-- Table: agent_performance_ledger
+-- Purpose: Track AI agent performance metrics by model version
+CREATE TABLE agent_performance_ledger (
+    agent_id              TEXT,
+    model_version         TEXT,
+    analyses_completed    INTEGER DEFAULT 0,
+    decisions_generated   INTEGER DEFAULT 0,
+    avg_confidence_score  DECIMAL,
+    avg_duration_ms       INTEGER,
+    approve_rate          DECIMAL DEFAULT 0,
+    decline_rate          DECIMAL DEFAULT 0,
+    refer_rate            DECIMAL DEFAULT 0,
+    human_override_rate   DECIMAL DEFAULT 0,
+    first_seen_at         TIMESTAMPTZ,
+    last_seen_at          TIMESTAMPTZ,
+    PRIMARY KEY (agent_id, model_version)
+);
+
+CREATE INDEX idx_agent_perf_model ON agent_performance_ledger (model_version, last_seen_at);
+
+
+-- Table: compliance_audit_view
+-- Purpose: Regulatory compliance records with temporal queries
+CREATE TABLE compliance_audit_view (
+    application_id        TEXT,
+    check_timestamp       TIMESTAMPTZ,
+    rule_id               TEXT,
+    rule_version          TEXT,
+    passed                BOOLEAN,
+    evidence_hash         TEXT,
+    regulation_set        TEXT,
+    snapshot_version      INTEGER DEFAULT 1,
+    PRIMARY KEY (application_id, check_timestamp, rule_id)
+);
+
+CREATE INDEX idx_compliance_app ON compliance_audit_view (application_id, check_timestamp);
+CREATE INDEX idx_compliance_rules ON compliance_audit_view (rule_id, rule_version);
+
+
+-- Table: compliance_snapshots
+-- Purpose: Store periodic snapshots for faster temporal queries
+CREATE TABLE compliance_snapshots (
+    application_id        TEXT,
+    snapshot_timestamp    TIMESTAMPTZ,
+    snapshot_data         JSONB,
+    event_position        BIGINT,
+    created_at            TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (application_id, snapshot_timestamp)
+);
+
+CREATE INDEX idx_snapshots_position ON compliance_snapshots (application_id, event_position);
+
+
+-- Table: projection_checkpoints (update if not exists)
+-- Already defined in Phase 1, but ensure it has all projections
+INSERT INTO projection_checkpoints (projection_name, last_position, updated_at)
+VALUES 
+    ('application_summary', 0, NOW()),
+    ('agent_performance', 0, NOW()),
+    ('compliance_audit', 0, NOW())
+ON CONFLICT (projection_name) DO NOTHING;

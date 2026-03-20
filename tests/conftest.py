@@ -4,7 +4,7 @@ import pytest
 import asyncpg
 import asyncio
 import os
-from typing import AsyncGenerator, Dict, Any
+from typing import AsyncGenerator
 
 
 @pytest.fixture(scope="session")
@@ -25,17 +25,30 @@ async def postgres_pool() -> AsyncGenerator[asyncpg.Pool, None]:
         "port": int(os.getenv("POSTGRES_PORT", 5432)),
         "user": os.getenv("POSTGRES_USER", "postgres"),
         "password": os.getenv("POSTGRES_PASSWORD", "postgres"),
-        "database": os.getenv("POSTGRES_DB", "agentic_ledger_test"),
+        "database": "agentic_ledger_test",
         "min_size": 1,
         "max_size": 5,
     }
     
-    # Create pool
     pool = await asyncpg.create_pool(**db_config)
     
-    # Clean tables before each test
+    # Clean all tables before each test
     async with pool.acquire() as conn:
-        await conn.execute("TRUNCATE events, event_streams, projection_checkpoints, outbox CASCADE")
+        await conn.execute("""
+            TRUNCATE 
+                events, 
+                event_streams, 
+                projection_checkpoints, 
+                outbox,
+                application_summary,
+                compliance_audit_view,
+                compliance_snapshots,
+                agent_performance_ledger
+            CASCADE
+        """)
+        
+        # Reset sequences
+        await conn.execute("ALTER SEQUENCE events_global_position_seq RESTART WITH 1")
     
     yield pool
     
