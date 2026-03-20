@@ -26,19 +26,19 @@ class BaseEvent:
     event_type: str = "BaseEvent"
     event_version: int = 1
     
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert event to dictionary for storage."""
-        # Get all fields that aren't metadata
-        result = {}
-        for key, value in self.__dict__.items():
-            if key not in ['event_id', 'stream_id', 'stream_position', 
-                          'global_position', 'recorded_at']:
-                result[key] = value
+    # def to_dict(self) -> Dict[str, Any]:
+    #     """Convert event to dictionary for storage."""
+    #     # Get all fields that aren't metadata
+    #     result = {}
+    #     for key, value in self.__dict__.items():
+    #         if key not in ['event_id', 'stream_id', 'stream_position', 
+    #                       'global_position', 'recorded_at']:
+    #             result[key] = value
         
-        # Ensure event_type and event_version are included
-        result['event_type'] = self.event_type
-        result['event_version'] = self.event_version
-        return result
+    #     # Ensure event_type and event_version are included
+    #     result['event_type'] = self.event_type
+    #     result['event_version'] = self.event_version
+    #     return result
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'BaseEvent':

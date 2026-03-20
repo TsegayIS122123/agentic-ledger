@@ -70,6 +70,12 @@ class EventStore:
                 for i, event in enumerate(events):
                     position = current_version + i + 1
                     
+                    # Get event type from the event object
+                    event_type = getattr(event, 'event_type', 'Unknown')
+                    
+                    # Convert event to dict without including event_type in payload
+                    event_dict = event.to_dict()
+                    
                     await conn.execute("""
                         INSERT INTO events (
                             stream_id, stream_position, event_type, 
@@ -78,9 +84,9 @@ class EventStore:
                     """,
                         stream_id,
                         position,
-                        event.event_type,
+                        event_type,  # Use the event_type from the class
                         event.event_version,
-                        json.dumps(event.to_dict()),
+                        json.dumps(event_dict),  # Don't include event_type in payload
                         json.dumps(base_metadata)
                     )
 
