@@ -40,20 +40,12 @@ class GasTownMemory:
     ) -> AgentContext:
         """
         Reconstruct agent context from event stream after crash.
-        
-        Strategy:
-        1. Load full AgentSession stream
-        2. Identify last completed action and pending work
-        3. Summarize old events (token-efficient)
-        4. Keep last 3 events verbatim
-        5. Detect partial/incomplete actions
         """
         stream_id = f"agent-{agent_id}-{session_id}"
         
         try:
             events = await self.store.load_stream(stream_id)
         except:
-            # No events - brand new session
             return AgentContext(
                 agent_id=agent_id,
                 session_id=session_id,
@@ -73,7 +65,7 @@ class GasTownMemory:
                 session_health_status="EMPTY"
             )
         
-        # Analyze events to find state
+        # Analyze events
         context_parts = []
         pending_work = []
         token_estimate = 0
@@ -97,9 +89,9 @@ class GasTownMemory:
             old_events = events[:-3]
             summary = self._summarize_events(old_events)
             context_parts.append(summary)
-            token_estimate += len(summary) // 4  # Rough token estimate
+            token_estimate += len(summary) // 4
         
-        # Add verbatim recent events
+        # Add verbatim recent events with proper event text
         for event in verbatim_events:
             event_text = self._event_to_text(event)
             context_parts.append(event_text)
@@ -134,22 +126,18 @@ class GasTownMemory:
     
     def _is_partial_action(self, event: StoredEvent) -> bool:
         """Check if an event represents a partial/incomplete action."""
-        # Actions that start something but don't have completion
-        if event.event_type == "CreditAnalysisRequested":
-            # This is a request - we need to check if it was completed
-            return True
-        return False
+        # Check if event type indicates a request without completion
+        partial_types = ["CreditAnalysisRequested"]
+        return event.event_type in partial_types
     
     def _extract_pending_work(self, event: StoredEvent) -> Dict[str, Any]:
         """Extract pending work information from an event."""
-        if event.event_type == "CreditAnalysisRequested":
-            return {
-                "type": "credit_analysis",
-                "application_id": event.payload.get("application_id"),
-                "requested_at": event.payload.get("requested_at"),
-                "description": f"Credit analysis requested for {event.payload.get('application_id')}"
-            }
-        return {"type": "unknown", "description": "Unknown pending work"}
+        payload = event.payload
+        return {
+            "type": event.event_type,
+            "application_id": payload.get("application_id", "unknown"),
+            "description": f"{event.event_type} for {payload.get('application_id', 'unknown')}"
+        }
     
     def _summarize_events(self, events: List[StoredEvent]) -> str:
         """Summarize a list of old events."""
@@ -159,7 +147,8 @@ class GasTownMemory:
         # Group by event type
         counts = {}
         for event in events:
-            counts[event.event_type] = counts.get(event.event_type, 0) + 1
+            event_name = event.event_type
+            counts[event_name] = counts.get(event_name, 0) + 1
         
         summary = f"[Summary: {len(events)} earlier events - "
         summary += ", ".join([f"{count} × {etype}" for etype, count in counts.items()])
@@ -168,33 +157,48 @@ class GasTownMemory:
         return summary
     
     def _event_to_text(self, event: StoredEvent) -> str:
-        """Convert an event to human-readable text."""
+        """Convert an event to human-readable text with proper display names."""
         payload = event.payload
         
+        # Map event types to readable descriptions
         if event.event_type == "AgentContextLoaded":
-            return f"🟢 Session started with model {payload.get('model_version')}, context from {payload.get('context_source')}"
+            return f"🟢 Session started with model {payload.get('model_version', 'unknown')}, context from {payload.get('context_source', 'unknown')}"
         
         elif event.event_type == "CreditAnalysisCompleted":
-            return f"📊 Credit analysis: risk_tier={payload.get('risk_tier')}, confidence={payload.get('confidence_score')}"
+            return f"📊 Credit analysis: risk_tier={payload.get('risk_tier', 'unknown')}, confidence={payload.get('confidence_score', 'N/A')}"
         
         elif event.event_type == "FraudScreeningCompleted":
-            return f"🔍 Fraud screening: score={payload.get('fraud_score')}"
+            return f"🔍 Fraud screening: score={payload.get('fraud_score', 'N/A')}"
         
         elif event.event_type == "DecisionGenerated":
-            return f"🎯 Decision: {payload.get('recommendation')} (confidence: {payload.get('confidence_score')})"
+            return f"🎯 Decision: {payload.get('recommendation', 'unknown')} (confidence: {payload.get('confidence_score', 'N/A')})"
         
         else:
-            return f"📝 {event.event_type}: {payload}"
+            # Generic fallback
+            event_name = event.event_type
+            key_fields = []
+            if 'application_id' in payload:
+                key_fields.append(f"app={payload['application_id']}")
+            if 'agent_id' in payload:
+                key_fields.append(f"agent={payload['agent_id']}")
+            if 'risk_tier' in payload:
+                key_fields.append(f"risk={payload['risk_tier']}")
+            
+            if key_fields:
+                return f"📝 {event_name}: {', '.join(key_fields)}"
+            return f"📝 {event_name}"
     
     def _truncate_to_budget(self, text: str, budget: int) -> str:
         """Truncate text to fit within token budget."""
-        # Very rough approximation: 1 token ≈ 4 characters
-        if len(text) <= budget * 4:
+        # Rough approximation: 1 token ≈ 4 characters
+        max_chars = budget * 4
+        
+        if len(text) <= max_chars:
             return text
         
         # Keep first and last parts
-        keep_chars = budget * 4
+        keep_chars = max_chars
         first_part = text[:keep_chars // 2]
         last_part = text[-(keep_chars // 2):]
         
-        return f"{first_part}\n... [truncated] ...\n{last_part}"
+        return f"{first_part}\n... [truncated to fit token budget] ...\n{last_part}"

@@ -46,9 +46,9 @@ class EventStore:
                     "SELECT current_version FROM event_streams WHERE stream_id = $1 FOR UPDATE",
                     stream_id
                 )
-                
+
                 current_version = row['current_version'] if row else 0
-                
+
                 # Check concurrency
                 if row is None:
                     if expected_version != -1:
@@ -69,30 +69,30 @@ class EventStore:
                 # Insert events
                 for i, event in enumerate(events):
                     position = current_version + i + 1
-                    
+
                     # Get event type from the event object
-                    event_type = getattr(event, 'event_type', 'Unknown')
-                    
-                    # Convert event to dict without including event_type in payload
+                    event_type = event.event_type
+
+                    # Convert event to dict
                     event_dict = event.to_dict()
-                    
+
                     await conn.execute("""
                         INSERT INTO events (
-                            stream_id, stream_position, event_type, 
+                            stream_id, stream_position, event_type,
                             event_version, payload, metadata
                         ) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb)
                     """,
                         stream_id,
                         position,
-                        event_type,  # Use the event_type from the class
+                        event_type,
                         event.event_version,
-                        json.dumps(event_dict),  # Don't include event_type in payload
+                        json.dumps(event_dict),
                         json.dumps(base_metadata)
                     )
 
                 # Update stream
                 new_version = current_version + len(events)
-                
+
                 if row is None:
                     await conn.execute("""
                         INSERT INTO event_streams (stream_id, aggregate_type, current_version)
@@ -113,27 +113,27 @@ class EventStore:
     ) -> List[StoredEvent]:
         """Load all events for a stream."""
         query = """
-            SELECT 
+            SELECT
                 event_id, stream_id, stream_position, global_position,
                 event_type, event_version, payload, metadata, recorded_at
             FROM events
             WHERE stream_id = $1
         """
         params = [stream_id]
-        
+
         if from_position > 0:
             query += " AND stream_position >= $2"
             params.append(from_position)
-        
+
         if to_position is not None:
             query += f" AND stream_position <= ${len(params) + 1}"
             params.append(to_position)
-        
+
         query += " ORDER BY stream_position ASC"
 
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query, *params)
-            
+
             if not rows and from_position == 0:
                 exists = await conn.fetchval(
                     "SELECT 1 FROM event_streams WHERE stream_id = $1",
@@ -141,7 +141,7 @@ class EventStore:
                 )
                 if not exists:
                     raise StreamNotFoundError(f"Stream {stream_id} not found")
-            
+
             return [StoredEvent.from_row(dict(row)) for row in rows]
 
     async def load_all(
@@ -152,19 +152,19 @@ class EventStore:
     ) -> AsyncGenerator[List[StoredEvent], None]:
         """Load events in global order."""
         query = """
-            SELECT 
+            SELECT
                 event_id, stream_id, stream_position, global_position,
                 event_type, event_version, payload, metadata, recorded_at
             FROM events
             WHERE global_position > $1
         """
         params = [from_global_position]
-        
+
         if event_types:
             placeholders = [f"${i+2}" for i in range(len(event_types))]
             query += f" AND event_type IN ({','.join(placeholders)})"
             params.extend(event_types)
-        
+
         query += " ORDER BY global_position ASC LIMIT $1000"
 
         async with self.pool.acquire() as conn:
@@ -172,14 +172,14 @@ class EventStore:
             while True:
                 current_query = query + f" OFFSET {offset}"
                 current_params = params + [batch_size]
-                
+
                 rows = await conn.fetch(current_query, *current_params)
-                
+
                 if not rows:
                     break
-                
+
                 yield [StoredEvent.from_row(dict(row)) for row in rows]
-                
+
                 offset += len(rows)
                 if len(rows) < batch_size:
                     break
@@ -201,7 +201,7 @@ class EventStore:
                 SET archived_at = NOW()
                 WHERE stream_id = $1 AND archived_at IS NULL
             """, stream_id)
-            
+
             if result == "UPDATE 0":
                 raise StreamNotFoundError(f"Stream {stream_id} not found")
 
@@ -214,10 +214,10 @@ class EventStore:
                 FROM event_streams
                 WHERE stream_id = $1
             """, stream_id)
-            
+
             if not row:
                 raise StreamNotFoundError(f"Stream {stream_id} not found")
-            
+
             return StreamMetadata(
                 stream_id=row['stream_id'],
                 aggregate_type=row['aggregate_type'],
