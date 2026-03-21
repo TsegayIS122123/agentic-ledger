@@ -9,7 +9,7 @@ from datetime import datetime
 import asyncpg
 
 from src.models.events import BaseEvent, StoredEvent, StreamMetadata
-from src.core.exceptions import OptimisticConcurrencyError, StreamNotFoundError
+from src.core.exceptions import OptimisticConcurrencyError, StreamNotFoundError, DomainError
 
 logger = logging.getLogger(__name__)
 
@@ -28,16 +28,24 @@ class EventStore:
         correlation_id: Optional[str] = None,
         causation_id: Optional[str] = None,
     ) -> int:
-        """Atomically append events to a stream."""
+        """
+        Atomically append events to a stream.
+        
+        CRITICAL: This method writes to BOTH events and outbox in a single transaction.
+        correlation_id and causation_id are stored in metadata for causal tracing.
+        """
         if not events:
             raise ValueError("Cannot append empty events list")
 
-        # Build metadata
-        base_metadata = {}
+        # Build metadata - CRITICAL for causal tracing
+        metadata = {}
         if correlation_id:
-            base_metadata["correlation_id"] = correlation_id
+            metadata["correlation_id"] = correlation_id
         if causation_id:
-            base_metadata["causation_id"] = causation_id
+            metadata["causation_id"] = causation_id
+        
+        # Add timestamp for traceability
+        metadata["recorded_at"] = datetime.utcnow().isoformat()
 
         async with self.pool.acquire() as conn:
             async with conn.transaction():
@@ -66,7 +74,7 @@ class EventStore:
                         message=f"Stream {stream_id} version mismatch"
                     )
 
-                # Insert events
+                # Insert events and outbox entries
                 for i, event in enumerate(events):
                     position = current_version + i + 1
 
@@ -76,21 +84,50 @@ class EventStore:
                     # Convert event to dict
                     event_dict = event.to_dict()
 
-                    await conn.execute("""
+                    # Insert into events table
+                    event_id = await conn.fetchval("""
                         INSERT INTO events (
                             stream_id, stream_position, event_type,
                             event_version, payload, metadata
                         ) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb)
+                        RETURNING event_id
                     """,
                         stream_id,
                         position,
                         event_type,
                         event.event_version,
                         json.dumps(event_dict),
-                        json.dumps(base_metadata)
+                        json.dumps(metadata)
                     )
+                    
+                    # CRITICAL: Write to outbox in the SAME transaction
+                    # Destination routing based on event type
+                    destination = f"event.{event_type}"
+                    
+                    # Prepare outbox payload (may differ from stored event)
+                    outbox_payload = {
+                        "event_id": str(event_id),
+                        "stream_id": stream_id,
+                        "stream_position": position,
+                        "event_type": event_type,
+                        "event_version": event.event_version,
+                        "payload": event_dict,
+                        "metadata": metadata
+                    }
+                    
+                    await conn.execute("""
+                        INSERT INTO outbox (
+                            event_id, destination, payload, created_at, attempts
+                        ) VALUES ($1, $2, $3::jsonb, NOW(), 0)
+                    """,
+                        event_id,
+                        destination,
+                        json.dumps(outbox_payload)
+                    )
+                    
+                    logger.debug(f"Appended event {event_id} to stream {stream_id} at position {position}")
 
-                # Update stream
+                # Update stream version
                 new_version = current_version + len(events)
 
                 if row is None:
@@ -103,6 +140,7 @@ class EventStore:
                         UPDATE event_streams SET current_version = $1 WHERE stream_id = $2
                     """, new_version, stream_id)
 
+                logger.info(f"Appended {len(events)} events to {stream_id}, new version {new_version}")
                 return new_version
 
     async def load_stream(

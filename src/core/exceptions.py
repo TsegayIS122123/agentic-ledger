@@ -8,6 +8,38 @@ class AgenticLedgerError(Exception):
     pass
 
 
+class DomainError(AgenticLedgerError):
+    """
+    Raised when a business rule is violated.
+    
+    This is the base class for ALL domain validation errors.
+    Never alias to built-in exceptions like ValueError.
+    """
+    
+    def __init__(
+        self,
+        message: str,
+        aggregate_type: Optional[str] = None,
+        stream_id: Optional[str] = None,
+        current_state: Optional[Dict] = None
+    ):
+        self.aggregate_type = aggregate_type
+        self.stream_id = stream_id
+        self.current_state = current_state
+        self.message = message
+        super().__init__(message)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to structured error for LLM consumption."""
+        return {
+            "error_type": "DomainError",
+            "aggregate_type": self.aggregate_type,
+            "stream_id": self.stream_id,
+            "message": self.message,
+            "suggested_action": "check_business_rules_and_retry"
+        }
+
+
 class OptimisticConcurrencyError(AgenticLedgerError):
     """
     Raised when an append operation fails due to concurrent modification.

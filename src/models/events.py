@@ -50,10 +50,9 @@ class BaseEvent:
 
 @dataclass
 class ApplicationSubmitted(BaseEvent):
-    """Application submitted by customer."""
     event_type: str = "ApplicationSubmitted"
-    event_version: int = 1
-
+    event_version: int = 1  # Explicit version
+    
     def __init__(self, application_id: str, applicant_id: str, requested_amount_usd: float,
                  loan_purpose: str, submission_channel: str, submitted_at: str):
         super().__init__()
@@ -63,7 +62,6 @@ class ApplicationSubmitted(BaseEvent):
         self.loan_purpose = loan_purpose
         self.submission_channel = submission_channel
         self.submitted_at = submitted_at
-
 
 @dataclass
 class CreditAnalysisRequested(BaseEvent):
@@ -167,10 +165,9 @@ class AgentContextLoaded(BaseEvent):
 
 @dataclass
 class CreditAnalysisCompleted(BaseEvent):
-    """Credit analysis completed by agent."""
     event_type: str = "CreditAnalysisCompleted"
-    event_version: int = 2
-
+    event_version: int = 2  # Version 2!
+    
     def __init__(self, application_id: str, agent_id: str, session_id: str,
                  model_version: str, confidence_score: float, risk_tier: str,
                  recommended_limit_usd: float, analysis_duration_ms: int, input_data_hash: str):
