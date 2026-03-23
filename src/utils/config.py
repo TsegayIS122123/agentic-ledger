@@ -11,7 +11,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        case_sensitive=False
+        case_sensitive=False,
+        extra="ignore"  # ← ADD THIS to ignore extra fields like gemini_api_key
     )
     
     # PostgreSQL
@@ -39,6 +40,9 @@ class Settings(BaseSettings):
     PROJECTION_BATCH_SIZE: int = 500
     PROJECTION_MAX_RETRIES: int = 3
     PROJECTION_RETRY_DELAY_MS: int = 1000
+    
+    # Note: max_retry_attempts is NOT in the config - it's from .env
+    # We'll let it be ignored via extra="ignore"
     
     # Security
     ENCRYPTION_KEY: str = "please-change-this-in-production"

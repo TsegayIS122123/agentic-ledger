@@ -555,7 +555,38 @@ graph LR
 - Add comprehensive tests for all projections
 - Update schema with projection tables
 - Add daemon runner script
+# 📘 PHASE 5: MCP Server - Complete Implementation
+Phase 5 builds the MCP (Model Context Protocol) Server - the interface that AI agents use to interact with your Ledger. This is where your event store becomes usable by real AI agents!
+
+```mermaid
+graph LR
+    subgraph "AI Agents"
+        A[Credit Agent]
+        B[Fraud Agent]
+        C[Compliance Agent]
+        D[Orchestrator]
+    end
     
+    subgraph "MCP Server"
+        T[MCP Tools<br/>Commands]
+        R[MCP Resources<br/>Queries]
+    end
+    
+    subgraph "Your Ledger"
+        ES[Event Store]
+        P[Projections]
+    end
+    
+    A -->|start_agent_session| T
+    B -->|record_fraud_screening| T
+    C -->|record_compliance_check| T
+    D -->|generate_decision| T
+    
+    T --> ES
+    
+    D -->|query compliance| R
+    R --> P
+``` 
 ## 🤝 Contributing
 
 This is a training project for the TRP1 FDE Program. Contributions and feedback are welcome!
